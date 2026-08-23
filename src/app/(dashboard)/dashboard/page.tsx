@@ -49,6 +49,7 @@ interface ProfileData {
 export default function DashboardPage() {
   const [renders, setRenders] = useState<Render[]>([]);
   const [loadingRenders, setLoadingRenders] = useState(true);
+  const [credits, setCredits] = useState<number | null>(null);
   const [tab, setTab] = useState<Tab>("overview");
   const { user, signOut } = useAuth();
 
@@ -100,6 +101,19 @@ export default function DashboardPage() {
         setLoadingRenders(false);
       });
 
+    supabase
+      .from("profiles")
+      .select("full_name, credit_balance")
+      .eq("id", user.id)
+      .single()
+      .then(({ data, error }) => {
+        if (cancelled || error || !data) return;
+        if (data.full_name) setFullName(data.full_name);
+        if (typeof data.credit_balance === "number") {
+          setCredits(data.credit_balance);
+        }
+      });
+
     return () => {
       cancelled = true;
     };
@@ -110,6 +124,19 @@ export default function DashboardPage() {
       localStorage.setItem(PROFILE_STORAGE_KEY, JSON.stringify({ fullName }));
     } catch {
       // ignore
+    }
+    if (user) {
+      const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+      const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+      if (url && key) {
+        createClient()
+          .from("profiles")
+          .update({ full_name: fullName.trim() || null })
+          .eq("id", user.id)
+          .then(({ error }) => {
+            if (error) console.error("Failed to save profile:", error);
+          });
+      }
     }
     setProfileSaved(true);
     setTimeout(() => setProfileSaved(false), 2500);
@@ -216,7 +243,7 @@ export default function DashboardPage() {
                   <CreditCard className="h-4 w-4 text-zinc-400" />
                 </CardHeader>
                 <CardContent>
-                  <div className="text-3xl font-bold">3</div>
+                  <div className="text-3xl font-bold">{credits ?? 3}</div>
                   <p className="text-xs text-zinc-500 mt-1">Free plan</p>
                 </CardContent>
               </Card>

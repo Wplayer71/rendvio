@@ -10,7 +10,8 @@ export async function updateSession(request: NextRequest) {
   const isAuthPage = request.nextUrl.pathname.startsWith("/login") ||
     request.nextUrl.pathname.startsWith("/signup");
   const isDashboardPage =
-    request.nextUrl.pathname.startsWith("/dashboard");
+    request.nextUrl.pathname.startsWith("/dashboard") ||
+    request.nextUrl.pathname.startsWith("/welcome");
 
   const hasSupabase = supabaseUrl &&
     supabaseAnonKey &&

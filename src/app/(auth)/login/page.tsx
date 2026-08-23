@@ -27,21 +27,35 @@ export default function LoginPage() {
     setError("");
     setLoading(true);
 
-    const supabase = createClient();
-    const { error } = await supabase.auth.signInWithOtp({
-      email,
-      options: {
-        emailRedirectTo: `${window.location.origin}/auth/callback`,
-        shouldCreateUser: true,
-      },
-    });
+    try {
+      const supabase = createClient();
+      const result = await Promise.race([
+        supabase.auth.signInWithOtp({
+          email,
+          options: {
+            emailRedirectTo: `${window.location.origin}/auth/callback`,
+            shouldCreateUser: true,
+          },
+        }),
+        new Promise<never>((_, reject) =>
+          setTimeout(
+            () => reject(new Error("Request timed out. Please try again.")),
+            20000
+          )
+        ),
+      ]);
 
-    setLoading(false);
-
-    if (error) {
-      setError(error.message);
-    } else {
-      setSent(true);
+      if (result.error) {
+        setError(result.error.message);
+      } else {
+        setSent(true);
+      }
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "Something went wrong. Please try again."
+      );
+    } finally {
+      setLoading(false);
     }
   };
 

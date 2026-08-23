@@ -31,6 +31,10 @@ CREATE TABLE IF NOT EXISTS public.renders (
 -- If the renders table already existed from an earlier run, make sure the prompt column exists
 ALTER TABLE public.renders ADD COLUMN IF NOT EXISTS prompt TEXT;
 
+-- Profile onboarding columns (welcome flow)
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS full_name TEXT;
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS company TEXT;
+
 CREATE TABLE IF NOT EXISTS public.credit_transactions (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
