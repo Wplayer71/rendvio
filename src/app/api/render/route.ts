@@ -1,13 +1,21 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient, createServiceClient } from "@/lib/supabase/server";
 import { submitRender } from "@/lib/fal-client";
+import { RENDER_PROMPTS, type RenderMode } from "@/lib/render-prompts";
 import type { Render } from "@/types/database";
+
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
+
+function publicUrl(bucket: string, path: string) {
+  return `${SUPABASE_URL}/storage/v1/object/public/${bucket}/${path}`;
+}
 
 export async function POST(request: NextRequest) {
   try {
     const formData = await request.formData();
     const image = formData.get("image") as File | null;
     const mode = formData.get("mode") as string | null;
+    const customPrompt = ((formData.get("prompt") as string) ?? "").trim();
 
     if (!image || !mode) {
       return NextResponse.json(
@@ -103,17 +111,30 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    if (!process.env.FAL_KEY) {
+      return NextResponse.json(
+        { error: "Rendering is not configured yet (FAL_KEY missing)." },
+        { status: 503 }
+      );
+    }
+
+    // Combine mode prompt (always applied) with optional user prompt
+    const finalPrompt = customPrompt
+      ? `${RENDER_PROMPTS[mode as RenderMode]}\n\nAdditional instructions from the user (apply them, do not contradict the main task): ${customPrompt}`
+      : RENDER_PROMPTS[mode as RenderMode];
+
     // Convert image to base64 for fal.ai
-    const imageBuffer = await image.arrayBuffer();
-    const imageBase64 = Buffer.from(imageBuffer).toString("base64");
+    const imageBuffer = Buffer.from(await image.arrayBuffer());
+    const imageBase64 = imageBuffer.toString("base64");
     const imageDataUrl = `data:${image.type};base64,${imageBase64}`;
 
     // Call fal.ai
     let result;
     try {
       result = await submitRender(
-        mode as "interior" | "exterior" | "sketch",
-        imageDataUrl
+        mode as RenderMode,
+        imageDataUrl,
+        finalPrompt
       );
     } catch (falError) {
       console.error("fal.ai render failed:", falError);
@@ -123,34 +144,56 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    if (!result.imageUrl) {
+      return NextResponse.json(
+        { error: "AI rendering failed: no image returned." },
+        { status: 500 }
+      );
+    }
+
+    // Upload source + result images to Supabase Storage
+    const serviceClient = createServiceClient();
+    const ext = image.type === "image/png" ? "png" : image.type === "image/webp" ? "webp" : "jpg";
+    const owner = user?.id ?? "anonymous";
+    const id = crypto.randomUUID();
+    const sourcePath = `${owner}/${id}.${ext}`;
+    const resultPath = `${owner}/${id}.png`;
+
+    let sourceImageUrl = imageDataUrl;
+    try {
+      await serviceClient.storage
+        .from("source-images")
+        .upload(sourcePath, imageBuffer, {
+          contentType: image.type,
+          upsert: false,
+        });
+      sourceImageUrl = publicUrl("source-images", sourcePath);
+    } catch (storageError) {
+      console.error("Failed to upload source image:", storageError);
+    }
+
+    let resultImageUrl = result.imageUrl;
+    try {
+      const res = await fetch(result.imageUrl);
+      if (res.ok) {
+        const resultBuffer = Buffer.from(await res.arrayBuffer());
+        await serviceClient.storage
+          .from("renders")
+          .upload(resultPath, resultBuffer, {
+            contentType: "image/png",
+            upsert: false,
+          });
+        resultImageUrl = publicUrl("renders", resultPath);
+      }
+    } catch (storageError) {
+      console.error("Failed to upload result image:", storageError);
+    }
+
     // Deduct credit for authenticated users
     if (user) {
-      const { error: deductError } = await supabase
-        .from("profiles")
-        .update({ credit_balance: 0 })
-        .eq("id", user.id)
-        .lt("credit_balance", 1);
-
-      if (!deductError) {
-        await supabase.rpc("decrement_credit", {
-          user_id: user.id,
-        });
-      } else {
-        // Fallback: direct update if RPC doesn't exist
-        const { data: currentProfile } = await supabase
-          .from("profiles")
-          .select("credit_balance")
-          .eq("id", user.id)
-          .single();
-
-        if (currentProfile) {
-          const newBalance = Math.max(0, currentProfile.credit_balance - 1);
-          await supabase
-            .from("profiles")
-            .update({ credit_balance: newBalance })
-            .eq("id", user.id);
-        }
-      }
+      await supabase.rpc("decrement_credit", {
+        user_id: user.id,
+      });
 
       // Record the transaction
       await supabase.from("credit_transactions").insert({
@@ -161,13 +204,13 @@ export async function POST(request: NextRequest) {
     }
 
     // Store render record
-    const serviceClient = createServiceClient();
     const renderData = {
       user_id: user?.id ?? null,
       mode,
-      source_image_url: imageDataUrl.substring(0, 255),
-      result_image_url: result.imageUrl ?? null,
-      status: result.status,
+      source_image_url: sourceImageUrl,
+      result_image_url: resultImageUrl,
+      prompt: finalPrompt,
+      status: "completed",
       fal_request_id: result.requestId,
     };
 
@@ -185,7 +228,7 @@ export async function POST(request: NextRequest) {
       {
         render: renderRecord ?? { ...renderData, id: "local", created_at: new Date().toISOString() },
         requestId: result.requestId,
-        imageUrl: result.imageUrl,
+        imageUrl: resultImageUrl,
         status: result.status,
       },
       { status: 200 }

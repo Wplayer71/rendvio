@@ -15,6 +15,7 @@ export interface Render {
   result_image_url: string | null;
   status: string;
   fal_request_id: string | null;
+  prompt?: string | null;
   created_at: string;
   updated_at?: string;
 }

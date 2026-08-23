@@ -150,3 +150,40 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
+-- ============================================================
+-- Migration (run these in Supabase SQL Editor after the above)
+-- ============================================================
+
+-- 1. Prompt column on renders (stores the final combined prompt)
+ALTER TABLE public.renders ADD COLUMN IF NOT EXISTS prompt TEXT;
+
+-- 2. Storage buckets for source + result images (public read)
+INSERT INTO storage.buckets (id, name, public)
+VALUES ('source-images', 'source-images', true)
+ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO storage.buckets (id, name, public)
+VALUES ('renders', 'renders', true)
+ON CONFLICT (id) DO NOTHING;
+
+-- 3. Storage policies: anyone can read public buckets, service role can write
+DROP POLICY IF EXISTS "Public read source-images" ON storage.objects;
+CREATE POLICY "Public read source-images"
+  ON storage.objects FOR SELECT
+  USING (bucket_id = 'source-images');
+
+DROP POLICY IF EXISTS "Public read renders" ON storage.objects;
+CREATE POLICY "Public read renders"
+  ON storage.objects FOR SELECT
+  USING (bucket_id = 'renders');
+
+DROP POLICY IF EXISTS "Service role uploads source-images" ON storage.objects;
+CREATE POLICY "Service role uploads source-images"
+  ON storage.objects FOR INSERT
+  WITH CHECK (bucket_id = 'source-images');
+
+DROP POLICY IF EXISTS "Service role uploads renders" ON storage.objects;
+CREATE POLICY "Service role uploads renders"
+  ON storage.objects FOR INSERT
+  WITH CHECK (bucket_id = 'renders');
+

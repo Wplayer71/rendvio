@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import {
   Plus,
@@ -14,6 +14,7 @@ import {
   KeyRound,
   LayoutDashboard,
   Check,
+  Loader2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -21,13 +22,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/components/auth-provider";
-
-const MOCK_RENDERS = [
-  { id: "1", mode: "interior", date: "2026-08-09", status: "completed", thumbnail: "https://placehold.co/400x300/18181b/fafafa?text=Render+1" },
-  { id: "2", mode: "exterior", date: "2026-08-08", status: "completed", thumbnail: "https://placehold.co/400x300/18181b/fafafa?text=Render+2" },
-  { id: "3", mode: "sketch", date: "2026-08-07", status: "failed", thumbnail: "https://placehold.co/400x300/fef2f2/dc2626?text=Failed" },
-  { id: "4", mode: "interior", date: "2026-08-06", status: "processing", thumbnail: "https://placehold.co/400x300/f4f4f5/a1a1aa?text=Processing" },
-];
+import { createClient } from "@/lib/supabase/client";
+import type { Render } from "@/types/database";
 
 const MODE_LABELS: Record<string, string> = {
   interior: "Interior Staging",
@@ -37,6 +33,7 @@ const MODE_LABELS: Record<string, string> = {
 
 const STATUS_ICONS: Record<string, React.ReactNode> = {
   completed: <CheckCircle2 className="h-4 w-4 text-green-600" />,
+  pending: <Clock className="h-4 w-4 text-amber-500" />,
   processing: <Clock className="h-4 w-4 text-amber-500 animate-spin" />,
   failed: <XCircle className="h-4 w-4 text-red-500" />,
 };
@@ -50,7 +47,8 @@ interface ProfileData {
 }
 
 export default function DashboardPage() {
-  const [renders] = useState(MOCK_RENDERS);
+  const [renders, setRenders] = useState<Render[]>([]);
+  const [loadingRenders, setLoadingRenders] = useState(true);
   const [tab, setTab] = useState<Tab>("overview");
   const { user, signOut } = useAuth();
 
@@ -73,6 +71,39 @@ export default function DashboardPage() {
   const [profileSaved, setProfileSaved] = useState(false);
   const [passwordSaved, setPasswordSaved] = useState(false);
   const [passwordError, setPasswordError] = useState("");
+
+  useEffect(() => {
+    if (!user) return;
+
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    if (!url || !key) {
+      setLoadingRenders(false);
+      return;
+    }
+
+    let cancelled = false;
+    const supabase = createClient();
+
+    supabase
+      .from("renders")
+      .select("*")
+      .eq("user_id", user.id)
+      .order("created_at", { ascending: false })
+      .then(({ data, error }) => {
+        if (cancelled) return;
+        if (error) {
+          console.error("Failed to load renders:", error);
+        } else {
+          setRenders((data as Render[]) ?? []);
+        }
+        setLoadingRenders(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.id]);
 
   const handleSaveProfile = () => {
     try {
@@ -103,6 +134,25 @@ export default function DashboardPage() {
 
   const email = user?.email || "demo@rendvio.app";
 
+  const formatDate = (iso: string) => {
+    try {
+      return new Date(iso).toLocaleDateString("en-US", {
+        year: "numeric",
+        month: "short",
+        day: "numeric",
+      });
+    } catch {
+      return iso;
+    }
+  };
+
+  const tabClasses = (active: boolean) =>
+    `flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors ${
+      active
+        ? "border-zinc-900 text-zinc-900"
+        : "border-transparent text-zinc-500 hover:text-zinc-900"
+    }`;
+
   return (
     <div className="min-h-screen bg-zinc-50">
       <header className="border-b border-zinc-200 bg-white">
@@ -112,9 +162,6 @@ export default function DashboardPage() {
           </Link>
           <div className="flex items-center gap-4">
             <span className="hidden sm:inline text-sm text-zinc-500">{email}</span>
-            <Link href="/dashboard/billing" className="text-sm text-zinc-600 hover:text-zinc-900">
-              Billing
-            </Link>
             <Button variant="ghost" size="sm" onClick={signOut}>
               <LogOut className="h-4 w-4 mr-1" />
               Sign out
@@ -144,28 +191,18 @@ export default function DashboardPage() {
         </div>
 
         <div className="mb-8 flex gap-1 border-b border-zinc-200">
-          <button
-            onClick={() => setTab("overview")}
-            className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors ${
-              tab === "overview"
-                ? "border-zinc-900 text-zinc-900"
-                : "border-transparent text-zinc-500 hover:text-zinc-900"
-            }`}
-          >
+          <button onClick={() => setTab("overview")} className={tabClasses(tab === "overview")}>
             <LayoutDashboard className="h-4 w-4" />
             Overview
           </button>
-          <button
-            onClick={() => setTab("settings")}
-            className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors ${
-              tab === "settings"
-                ? "border-zinc-900 text-zinc-900"
-                : "border-transparent text-zinc-500 hover:text-zinc-900"
-            }`}
-          >
+          <button onClick={() => setTab("settings")} className={tabClasses(tab === "settings")}>
             <User className="h-4 w-4" />
             Profile Settings
           </button>
+          <Link href="/dashboard/billing" className={tabClasses(false)}>
+            <CreditCard className="h-4 w-4" />
+            Billing
+          </Link>
         </div>
 
         {tab === "overview" && (
@@ -216,7 +253,12 @@ export default function DashboardPage() {
 
             <h2 className="text-lg font-semibold mb-4">Render History</h2>
 
-            {renders.length === 0 ? (
+            {loadingRenders ? (
+              <div className="flex items-center justify-center py-12 text-zinc-500">
+                <Loader2 className="h-6 w-6 mr-2 animate-spin" />
+                Loading your renders...
+              </div>
+            ) : renders.length === 0 ? (
               <div className="text-center py-12 border-2 border-dashed border-zinc-200 rounded-xl">
                 <ImageIcon className="h-12 w-12 text-zinc-300 mx-auto mb-4" />
                 <p className="text-zinc-500">No renders yet. Create your first render!</p>
@@ -232,26 +274,49 @@ export default function DashboardPage() {
                 {renders.map((render) => (
                   <Link key={render.id} href={`/dashboard/render/${render.id}`}>
                     <Card className="overflow-hidden hover:shadow-md transition-shadow cursor-pointer h-full">
-                      <div className="aspect-[4/3] bg-zinc-100 relative">
-                        <img
-                          src={render.thumbnail}
-                          alt={`Render ${render.id}`}
-                          className="w-full h-full object-cover"
-                        />
-                        <div className="absolute top-2 left-2">
-                          <Badge variant="secondary" className="text-xs">
-                            {MODE_LABELS[render.mode]}
-                          </Badge>
+                      <div className="grid grid-cols-2 gap-px bg-zinc-200">
+                        <div className="relative bg-zinc-100">
+                          <img
+                            src={render.source_image_url}
+                            alt="Original"
+                            className="w-full aspect-[4/3] object-cover"
+                          />
+                          <span className="absolute bottom-1 left-1 text-[10px] font-medium bg-black/60 text-white px-1.5 py-0.5 rounded">
+                            Original
+                          </span>
+                        </div>
+                        <div className="relative bg-zinc-100">
+                          {render.result_image_url ? (
+                            <img
+                              src={render.result_image_url}
+                              alt="Render"
+                              className="w-full aspect-[4/3] object-cover"
+                            />
+                          ) : (
+                            <div className="w-full aspect-[4/3] flex items-center justify-center text-zinc-400">
+                              <Clock className="h-5 w-5" />
+                            </div>
+                          )}
+                          <span className="absolute bottom-1 right-1 text-[10px] font-medium bg-black/60 text-white px-1.5 py-0.5 rounded">
+                            Render
+                          </span>
                         </div>
                       </div>
                       <CardContent className="p-3">
-                        <div className="flex items-center justify-between">
-                          <span className="text-xs text-zinc-500">{render.date}</span>
+                        <div className="flex items-center justify-between mb-1.5">
+                          <Badge variant="secondary" className="text-xs">
+                            {MODE_LABELS[render.mode] ?? render.mode}
+                          </Badge>
                           <span className="flex items-center gap-1 text-xs">
-                            {STATUS_ICONS[render.status]}
+                            {STATUS_ICONS[render.status] ?? (
+                              <Clock className="h-4 w-4 text-zinc-400" />
+                            )}
                             <span className="capitalize">{render.status}</span>
                           </span>
                         </div>
+                        <span className="text-xs text-zinc-500">
+                          {formatDate(render.created_at)}
+                        </span>
                       </CardContent>
                     </Card>
                   </Link>

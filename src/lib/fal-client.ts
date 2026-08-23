@@ -16,16 +16,17 @@ function getFalConfig() {
 
 export async function submitRender(
   mode: RenderMode,
-  imageUrl: string
+  imageUrl: string,
+  prompt?: string
 ): Promise<RenderResult> {
-  const prompt = RENDER_PROMPTS[mode];
+  const finalPrompt = prompt || RENDER_PROMPTS[mode];
 
   fal.config(getFalConfig());
 
   if (mode === "interior") {
     const result = await fal.subscribe("fal-ai/nano-banana-pro/edit", {
       input: {
-        prompt,
+        prompt: finalPrompt,
         image_urls: [imageUrl],
       },
     });
@@ -40,7 +41,7 @@ export async function submitRender(
 
   const result = await fal.subscribe("fal-ai/flux-pro/kontext", {
     input: {
-      prompt,
+      prompt: finalPrompt,
       image_url: imageUrl,
     },
   });

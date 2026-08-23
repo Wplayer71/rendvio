@@ -24,7 +24,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { BeforeAfterSlider } from "@/components/before-after-slider";
-import { RENDER_MODES, RENDER_PROMPTS, type RenderMode } from "@/lib/render-prompts";
+import { RENDER_MODES, type RenderMode } from "@/lib/render-prompts";
 import { downloadImage } from "@/lib/download";
 import { cn } from "@/lib/utils";
 
@@ -45,8 +45,8 @@ export default function NewRenderPage() {
   const [step, setStep] = useState<Step>("upload");
   const [resultUrl, setResultUrl] = useState<string | null>(null);
   const [progress, setProgress] = useState(0);
-  const [prompt, setPrompt] = useState<string>(RENDER_PROMPTS.interior);
-  const [promptTouched, setPromptTouched] = useState(false);
+  const [prompt, setPrompt] = useState<string>("");
+  const [errorMessage, setErrorMessage] = useState("");
   const [downloading, setDownloading] = useState<"original" | "render" | null>(null);
 
   const onDrop = useCallback((acceptedFiles: File[]) => {
@@ -65,27 +65,44 @@ export default function NewRenderPage() {
     maxSize: 10 * 1024 * 1024,
   });
 
-  const runGeneration = useCallback(() => {
+  const runGeneration = async () => {
+    if (!file) return;
     setStep("processing");
     setProgress(0);
+    setErrorMessage("");
 
     const interval = setInterval(() => {
-      setProgress((prev) => {
-        if (prev >= 90) {
-          clearInterval(interval);
-          return prev;
-        }
-        return prev + Math.random() * 15;
-      });
+      setProgress((prev) => (prev >= 90 ? prev : prev + Math.random() * 12));
     }, 400);
 
-    setTimeout(() => {
+    try {
+      const formData = new FormData();
+      formData.append("image", file);
+      formData.append("mode", mode);
+      formData.append("prompt", prompt);
+
+      const res = await fetch("/api/render", {
+        method: "POST",
+        body: formData,
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.error || "Render failed");
+      }
+
       clearInterval(interval);
       setProgress(100);
-      setResultUrl("https://placehold.co/800x600/18181b/fafafa?text=AI+Render+Result");
+      setResultUrl(data.imageUrl ?? null);
       setStep("result");
-    }, 3000);
-  }, []);
+    } catch (err) {
+      clearInterval(interval);
+      setErrorMessage(
+        err instanceof Error ? err.message : "Something went wrong. Please try again."
+      );
+      setStep("error");
+    }
+  };
 
   const handleGenerate = () => {
     if (!file) return;
@@ -93,7 +110,6 @@ export default function NewRenderPage() {
   };
 
   const handleReprompt = () => {
-    setPromptTouched(true);
     runGeneration();
   };
 
@@ -103,14 +119,12 @@ export default function NewRenderPage() {
     setResultUrl(null);
     setStep("upload");
     setProgress(0);
-    setPrompt(RENDER_PROMPTS[mode]);
-    setPromptTouched(false);
+    setPrompt("");
+    setErrorMessage("");
   };
 
   const handleModeChange = (m: RenderMode) => {
     setMode(m);
-    setPrompt(RENDER_PROMPTS[m]);
-    setPromptTouched(false);
     setStep("upload");
   };
 
@@ -292,35 +306,21 @@ export default function NewRenderPage() {
                   <CardContent className="p-5">
                     <div className="flex items-center justify-between mb-3">
                       <Label htmlFor="prompt" className="text-sm font-semibold">
-                        3. Describe Your Render
+                        3. Describe Your Render{" "}
+                        <span className="font-normal text-zinc-400">(optional)</span>
                       </Label>
-                      {promptTouched && (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setPrompt(RENDER_PROMPTS[mode]);
-                            setPromptTouched(false);
-                          }}
-                          className="text-xs text-zinc-500 hover:text-zinc-900 underline underline-offset-2"
-                        >
-                          Reset to default
-                        </button>
-                      )}
                     </div>
                     <Textarea
                       id="prompt"
                       value={prompt}
-                      onChange={(e) => {
-                        setPrompt(e.target.value);
-                        setPromptTouched(true);
-                      }}
+                      onChange={(e) => setPrompt(e.target.value)}
                       rows={5}
-                      placeholder="Describe how you want your render to look..."
+                      placeholder="Optional — add your own instructions, e.g. 'add a fireplace and warm lighting'..."
                       className="resize-none text-sm leading-relaxed"
                     />
                     <p className="text-xs text-zinc-400 mt-2">
-                      A default prompt is pre-filled for {RENDER_MODES[mode].label} —
-                      edit it to customize the result.
+                      The {RENDER_MODES[mode].label} style is applied automatically in
+                      the background. Anything you write here is added on top of it.
                     </p>
                   </CardContent>
                 </Card>
@@ -383,12 +383,9 @@ export default function NewRenderPage() {
                       </Label>
                       <Textarea
                         value={prompt}
-                        onChange={(e) => {
-                          setPrompt(e.target.value);
-                          setPromptTouched(true);
-                        }}
+                        onChange={(e) => setPrompt(e.target.value)}
                         rows={4}
-                        placeholder="Describe a new style..."
+                        placeholder="Optional — describe a new style..."
                         className="resize-none text-sm leading-relaxed"
                       />
                     </div>
@@ -448,7 +445,7 @@ export default function NewRenderPage() {
                   <XCircle className="h-12 w-12 text-red-400 mx-auto mb-4" />
                   <h2 className="text-lg font-semibold mb-2">Render failed</h2>
                   <p className="text-sm text-zinc-500 mb-6">
-                    Something went wrong. Please try again.
+                    {errorMessage || "Something went wrong. Please try again."}
                   </p>
                   <Button variant="outline" onClick={handleNewRender}>
                     Try Again
