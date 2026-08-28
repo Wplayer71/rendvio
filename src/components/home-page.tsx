@@ -53,7 +53,7 @@ export function HomePage() {
       <header className="sticky top-0 z-50 border-b border-zinc-100 bg-white/80 backdrop-blur-md">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-4">
           <Link href="/" className="flex items-center gap-2 text-xl font-bold tracking-tight">
-            <img src="/logo.svg" alt="Rendvio Logo" className="h-8 w-8" />
+            <img src="/logo.png" alt="Rendvio Logo" className="h-8 w-8" />
             Rendvio
           </Link>
           <nav className="hidden items-center gap-8 text-sm font-medium md:flex">
@@ -279,7 +279,7 @@ export function HomePage() {
       <footer className="border-t border-zinc-100 bg-white px-6 py-12">
         <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-8 md:flex-row">
           <Link href="/" className="flex items-center gap-2 text-lg font-bold">
-            <img src="/logo.svg" alt="Rendvio Logo" className="h-6 w-6" />
+            <img src="/logo.png" alt="Rendvio Logo" className="h-6 w-6" />
             Rendvio
           </Link>
           <nav className="flex gap-8 text-sm text-zinc-500">

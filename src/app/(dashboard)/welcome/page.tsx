@@ -115,7 +115,8 @@ export default function WelcomePage() {
     <div className="min-h-screen bg-zinc-50">
       <header className="border-b border-zinc-200 bg-white">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 flex h-16 items-center justify-between">
-          <Link href="/" className="text-xl font-bold tracking-tight">
+          <Link href="/" className="flex items-center gap-2 text-xl font-bold tracking-tight">
+            <img src="/logo.png" alt="Rendvio Logo" className="h-7 w-7" />
             Rendvio
           </Link>
           <span className="text-sm text-zinc-500">{user?.email}</span>

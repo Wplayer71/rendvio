@@ -154,7 +154,8 @@ export default function NewRenderPage() {
             >
               <ArrowLeft className="h-5 w-5" />
             </Link>
-            <Link href="/" className="text-xl font-bold tracking-tight">
+            <Link href="/" className="flex items-center gap-2 text-xl font-bold tracking-tight">
+              <img src="/logo.png" alt="Rendvio Logo" className="h-7 w-7" />
               Rendvio
             </Link>
             <Badge variant="secondary" className="hidden sm:inline-flex">

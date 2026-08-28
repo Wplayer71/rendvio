@@ -1,10 +1,11 @@
 import { fal } from "@fal-ai/client";
-import { RENDER_PROMPTS, type RenderMode } from "./render-prompts";
+import { RENDER_MODES, RENDER_PROMPTS, type RenderMode } from "./render-prompts";
 
 export interface RenderResult {
   requestId: string;
   status: "pending" | "processing" | "completed" | "failed";
   imageUrl?: string;
+  inputImageUrl?: string;
   error?: string;
 }
 
@@ -16,57 +17,31 @@ function getFalConfig() {
 
 export async function submitRender(
   mode: RenderMode,
-  imageUrl: string,
+  image: File,
   prompt?: string
 ): Promise<RenderResult> {
+  const model = RENDER_MODES[mode].model;
   const finalPrompt = prompt || RENDER_PROMPTS[mode];
 
   fal.config(getFalConfig());
 
-  if (mode === "interior") {
-    const result = await fal.subscribe("fal-ai/nano-banana-pro/edit", {
-      input: {
-        prompt: finalPrompt,
-        image_urls: [imageUrl],
-      },
-    });
+  // Upload the source image to fal storage and get a public URL
+  const inputImageUrl = await fal.storage.upload(image);
 
-    return {
-      requestId: result.requestId,
-      status: "completed",
-      imageUrl: (result.data as { images?: Array<{ url: string }> })?.images?.[0]?.url ||
-        (result.data as { image?: { url: string } })?.image?.url,
-    };
-  }
-
-  const result = await fal.subscribe("fal-ai/flux-pro/kontext", {
+  const result = await fal.subscribe(model, {
     input: {
+      image_url: inputImageUrl,
       prompt: finalPrompt,
-      image_url: imageUrl,
+      output_format: "png",
+      num_images: 1,
     },
   });
 
   return {
     requestId: result.requestId,
     status: "completed",
-    imageUrl: (result.data as { images?: Array<{ url: string }> })?.images?.[0]?.url ||
-      (result.data as { image?: { url: string } })?.image?.url,
-  };
-}
-
-export async function checkStatus(
-  requestId: string
-): Promise<RenderResult> {
-  fal.config(getFalConfig());
-
-  const result = await fal.queue.result("fal-ai/flux-pro/kontext", {
-    requestId,
-  });
-
-  return {
-    requestId: result.requestId,
-    status: (result.data as { status?: string })?.status as RenderResult["status"] || "completed",
-    imageUrl: (result.data as { images?: Array<{ url: string }> })?.images?.[0]?.url ||
-      (result.data as { image?: { url: string } })?.image?.url,
+    imageUrl:
+      (result.data as { images?: Array<{ url: string }> })?.images?.[0]?.url,
+    inputImageUrl,
   };
 }

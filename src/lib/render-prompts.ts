@@ -6,19 +6,19 @@ export const RENDER_MODES: Record<
 > = {
   interior: {
     label: "Interior Staging",
-    model: "fal-ai/nano-banana-pro/edit",
+    model: "fal-ai/flux/dev/image-to-image",
     description:
       "Empty room photo → furnished, styled room. Best for architecture and spatial accuracy.",
   },
   exterior: {
     label: "Exterior Renovation",
-    model: "fal-ai/flux-pro/kontext",
+    model: "fal-ai/flux/dev/image-to-image",
     description:
       "Dated building facade → renovated modern exterior with preserved structure.",
   },
   sketch: {
     label: "Sketch to Render",
-    model: "fal-ai/flux-pro/kontext",
+    model: "fal-ai/flux/dev/image-to-image",
     description:
       "Architectural line sketch → photorealistic render with accurate perspective.",
   },

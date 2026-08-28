@@ -44,7 +44,8 @@ export default function BillingPage() {
     <div className="min-h-screen bg-zinc-50">
       <header className="border-b border-zinc-200 bg-white">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 flex h-16 items-center justify-between">
-          <Link href="/dashboard" className="text-xl font-bold tracking-tight">
+          <Link href="/dashboard" className="flex items-center gap-2 text-xl font-bold tracking-tight">
+            <img src="/logo.png" alt="Rendvio Logo" className="h-7 w-7" />
             Rendvio
           </Link>
           <Link href="/dashboard" className="text-sm text-zinc-600 hover:text-zinc-900">

@@ -125,15 +125,13 @@ export async function POST(request: NextRequest) {
 
     // Convert image to base64 for fal.ai
     const imageBuffer = Buffer.from(await image.arrayBuffer());
-    const imageBase64 = imageBuffer.toString("base64");
-    const imageDataUrl = `data:${image.type};base64,${imageBase64}`;
 
-    // Call fal.ai
+    // Call fal.ai (the client uploads the image to fal storage itself)
     let result;
     try {
       result = await submitRender(
         mode as RenderMode,
-        imageDataUrl,
+        image,
         finalPrompt
       );
     } catch (falError) {
@@ -159,7 +157,7 @@ export async function POST(request: NextRequest) {
     const sourcePath = `${owner}/${id}.${ext}`;
     const resultPath = `${owner}/${id}.png`;
 
-    let sourceImageUrl = imageDataUrl;
+    let sourceImageUrl = result.inputImageUrl ?? "";
     try {
       await serviceClient.storage
         .from("source-images")

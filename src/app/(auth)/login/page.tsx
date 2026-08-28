@@ -121,7 +121,8 @@ export default function LoginPage() {
     <div className="min-h-screen flex items-center justify-center bg-zinc-50 px-4">
       <Card className="w-full max-w-md">
         <CardHeader className="space-y-1 text-center">
-          <Link href="/" className="text-2xl font-bold tracking-tight">
+          <Link href="/" className="flex items-center justify-center gap-2 text-2xl font-bold tracking-tight">
+            <img src="/logo.png" alt="Rendvio Logo" className="h-8 w-8" />
             Rendvio
           </Link>
           <CardDescription>
