@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useCallback, useEffect } from "react";
+import { useState, useRef, useCallback, useEffect, useLayoutEffect } from "react";
 import { cn } from "@/lib/utils";
 
 interface BeforeAfterSliderProps {
@@ -19,8 +19,19 @@ export function BeforeAfterSlider({
   className,
 }: BeforeAfterSliderProps) {
   const [position, setPosition] = useState(50);
+  const [containerWidth, setContainerWidth] = useState<number | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const isDragging = useRef(false);
+
+  useLayoutEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const update = () => setContainerWidth(el.clientWidth);
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
 
   const updatePosition = useCallback((clientX: number) => {
     if (!containerRef.current) return;
@@ -92,8 +103,11 @@ export function BeforeAfterSlider({
         <img
           src={beforeImage}
           alt={beforeLabel}
-          className="absolute top-0 left-0 w-full h-auto object-cover"
-          style={{ minWidth: containerRef.current?.clientWidth ?? "100%" }}
+          className="absolute top-0 left-0 h-full object-cover"
+          style={{
+            width: containerWidth ?? "100%",
+            maxWidth: "none",
+          }}
           draggable={false}
         />
         <span className="absolute top-3 left-3 bg-black/60 text-white text-xs font-medium px-2 py-1 rounded">
